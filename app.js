@@ -1,5 +1,5 @@
 const SDK_URL = "https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@1.5.0/+esm";
-const VERSION = "1.0.1";
+const VERSION = "1.0.2";
 let Anthropic = null; // loaded on first use, so the screen still works if the CDN is slow or blocked
 const $ = (s) => document.querySelector(s);
 
@@ -16,13 +16,13 @@ const SCENES = ["카페에서 주문", "공항 체크인", "병원 진료", "친
 const ERROR_TYPES = ["ser/estar", "gender", "conjugation", "tense", "preposition", "vocab", "word-order", "other"];
 
 const DEFAULT_STORE = {
-  settings: { level: "A2", variety: "es-MX", interests: "", goal: "", rate: 0.9, voice: "", model: "claude-opus-5-5" },
+  settings: { level: "A2", variety: "es-MX", interests: "", goal: "", rate: 1, voice: "", model: "claude-opus-5-5" },
   errors: [], phrases: [], sessions: [],
 };
 
 const state = {
   mode: "charla", scene: SCENES[0], lang: "es", started: false, busy: false,
-  history: [], words: 0, turns: 0, fixes: 0, sessErrors: [],
+  history: [], words: 0, turns: 0, fixes: 0, sessErrors: [], sinceFix: 0, drill: null,
   store: structuredClone(DEFAULT_STORE),
 };
 
@@ -101,17 +101,28 @@ const REPORT_SCHEMA = {
   additionalProperties: false,
 };
 
-const RULES = `You are Profe Lucía, a warm, patient, slightly playful Spanish conversation tutor. Your single goal: get this learner to SPEAK Spanish, more each session.
+const RULES = `You are Profe Lucía, a 28-year-old woman from Mexico City who teaches Spanish conversation: warm, upbeat, a little playful, like a friendly older sister. Your single goal: get this learner to SPEAK Spanish, more each session.
+
+HOW YOU SOUND (your reply is read aloud by a voice engine, so write it the way a real young woman actually talks, not like a textbook or an assistant)
+- Everyday spoken Spanish: short natural sentences, contractions of thought, discourse markers where a native would use them (oye, mira, a ver, pues, ¿en serio?, ¡qué padre!, ¿y tú?, ándale). Do not stack them; one per turn at most.
+- React to WHAT they said first, like a person would (surprise, a tiny opinion, a short comment about yourself), then ask. Vary your reactions; never repeat the same praise formula ("¡Muy bien!") turn after turn.
+- Speak as a woman (estoy cansada, soy fanática...). Never sound like customer service ("¡Excelente pregunta!", "Claro, con gusto te ayudo").
+- Punctuate for natural rhythm: commas where you'd breathe, ¿? and ¡! properly. No emojis, markdown, lists, parentheses, slashes or abbreviations in reply.
 
 RULES
 1. "reply" = max 1-2 SHORT Spanish sentences and it must END with a question or a clear task. The learner should talk more than you.
 2. Never let them freeze. If they are silent, say "no sé", or seem stuck: rephrase simpler -> give sentence starters -> offer an A/B choice -> give a model sentence and ask them to repeat it.
 3. If they answer in Korean or English: praise, give the Spanish version in reply ("En español: ...") and ask them to say it.
-4. Correction = recast. Set correction.has_error=true ONLY when their Spanish had a real error, and give just the single most useful fix. If the same error repeated or meaning broke, set explicit=true and ask them in reply to say the corrected sentence again. Never correct correct Spanish. Their text comes from speech recognition: ignore missing accents, punctuation and capitalization, and likely mis-hearings. When has_error=false, fill wrong/right/note_ko with "" and type with "other".
-5. Grammar explanations go in correction.note_ko, in Korean, 1-2 lines; compare with English only when it helps.
-6. Use high-frequency chunks (me gustaría, lo que pasa es que, acabo de, tengo que...). Speak slightly above their speaking level.
-7. Specific, honest praise. No emojis or markdown in reply: it is read aloud.
-8. "starters": 0-3 Spanish sentence starters the learner could use to answer. "phrases": 0-2 useful chunks you used this turn, with Korean meaning. "task_ko": a Korean task line, or "".
+4. CORRECTION - only what matters, and only sometimes.
+   - Correct ONLY when a native speaker would misunderstand, be confused, or find it clearly wrong/strange (wrong word or meaning, wrong tense that changes the meaning, broken word order, ser/estar that changes meaning, a word that does not exist). Let small slips pass (gender/agreement, a missing article, a slightly off preposition, accents) unless the SAME slip keeps repeating; for those just echo the correct form naturally in your reply without marking it.
+   - Frequency: usually at most one marked correction every 2-3 learner turns (see "turns since last correction"). Keep the conversation flowing; it must not feel like an exam.
+   - When you do correct: correction.has_error=true, give the single most useful fix in "right" as the full natural sentence the learner meant, and set explicit=true. In reply, react briefly to the meaning, then say the corrected sentence clearly and ask them to say it ("Dilo conmigo: ...", "A ver, repítelo: ..."). Put a Korean instruction like "이 문장을 소리 내서 다시 말해 보세요" in task_ko.
+   - Never correct correct Spanish. Their text comes from speech recognition: ignore missing accents, punctuation and capitalization, and likely mis-hearings.
+   - When has_error=false, fill wrong/right/note_ko with "", type with "other", explicit=false.
+5. REPETITION PRACTICE. When a "PENDING REPETITION" is listed, the learner's turn is their attempt: if it is right (ignore accents/punctuation), give short genuine praise and continue the conversation; if still wrong, model it again slowly in smaller chunks and ask once more (max 2 retries, then praise the effort and move on). Later in the session (3-6 turns after a correction), naturally ask a new question that makes them NEED that same pattern again, without saying it is a review.
+6. Grammar explanations go in correction.note_ko, in Korean, 1-2 lines; compare with English only when it helps.
+7. Use high-frequency chunks (me gustaría, lo que pasa es que, acabo de, tengo que...). Speak slightly above their speaking level.
+8. "starters": 0-3 Spanish sentence starters the learner could use to answer (none during a repetition). "phrases": 0-2 useful chunks you used this turn, with Korean meaning. "task_ko": a Korean task line, or "".
 9. Lines in [square brackets] in the learner's turn are notes from the app, not the learner's speech.`;
 
 function profileBlock() {
@@ -130,7 +141,11 @@ ERROR LOG (target these patterns subtly; in Repaso, quiz them):
 ${errs}
 
 LEARNED PHRASES:
-${phrases}`;
+${phrases}
+
+THIS SESSION
+Learner turns since your last correction: ${state.sinceFix}
+Corrected this session (recycle these later): ${state.sessErrors.map((c) => `"${c.right}"`).join(", ") || "(none)"}${state.drill ? `\nPENDING REPETITION: you asked them to say "${state.drill}". Their latest turn is the attempt.` : ""}`;
 }
 
 function usesFallback(model) { return model === "claude-opus-5-5" || model === "claude-sonnet-5-5"; }
@@ -197,13 +212,14 @@ async function tutorTurn() {
     th.remove();
     const c = d.correction;
     if (c && c.has_error && c.wrong && c.right) {
-      addFix(c); state.fixes++;
+      addFix(c); state.fixes++; state.sinceFix = 0;
       const key = c.right.trim().toLowerCase();
       const ex = state.store.errors.find((e) => e.right.trim().toLowerCase() === key || e.wrong === c.wrong);
       if (ex) ex.count++;
       else state.store.errors.push({ wrong: c.wrong, right: c.right, type: c.type || "other", count: 1 });
       state.sessErrors.push(c);
     }
+    state.drill = c && c.has_error && c.explicit && c.right ? c.right : null;
     for (const p of d.phrases || []) {
       if (p?.es && !state.store.phrases.some((x) => x.es === p.es)) state.store.phrases.push({ es: p.es, ko: p.ko || "" });
     }
@@ -221,7 +237,7 @@ async function tutorTurn() {
 
 function startSession() {
   if (!getKey()) { note(errorCopy({ code: "no_key" })); openSheet(); return; }
-  state.started = true; state.history = []; state.words = 0; state.turns = 0; state.fixes = 0; state.sessErrors = [];
+  state.started = true; state.history = []; state.words = 0; state.turns = 0; state.fixes = 0; state.sessErrors = []; state.sinceFix = 0; state.drill = null;
   $("#chat").innerHTML = ""; renderMeter();
   pushUser(state.store.errors.length
     ? "[세션 시작. 짧게 인사하고, 에러 로그 1순위 패턴을 노리는 짧은 복습 질문 하나로 시작하세요.]"
@@ -233,7 +249,8 @@ function send() {
   const t = $("#text"); const text = t.value.trim();
   if (!text || state.busy) return;
   if (!state.started) { state.started = true; state.history = []; $("#chat").innerHTML = ""; }
-  t.value = ""; addMe(text);
+  killRecognizer(); // sending always turns the mic off, so Lucía's voice is never recorded
+  t.value = ""; addMe(text); state.sinceFix++;
   if (state.lang === "es") state.words += text.split(/\s+/).filter(Boolean).length;
   state.turns++; renderMeter();
   pushUser(state.lang === "ko" ? `[학습자가 한국어로 말함] ${text}` : text);
@@ -340,6 +357,10 @@ function addFix(c) {
   const f = Object.assign(document.createElement("div"), { className: "fix" });
   f.append(Object.assign(document.createElement("s"), { textContent: c.wrong }), Object.assign(document.createElement("div"), { className: "right", textContent: "→ " + c.right }));
   if (c.note_ko) f.append(Object.assign(document.createElement("div"), { textContent: c.note_ko }));
+  if (c.explicit !== undefined) {
+    const b = Object.assign(document.createElement("button"), { className: "fixplay", textContent: "🔊 맞는 문장 듣기" });
+    b.onclick = () => speak(c.right); f.append(b);
+  }
   $("#chat").append(f); scrollChat();
 }
 function addTutor(d, opts = {}) {
@@ -385,22 +406,44 @@ function renderWelcome() {
 /* ---------------- voice out (TTS) ---------------- */
 const synth = "speechSynthesis" in window ? window.speechSynthesis : null;
 let voices = [];
+// Web Speech API has no gender field, so guess from the voice name. Prefer young-sounding female and higher-quality (network/neural) voices.
+const FEMALE = /(female|mujer|femenin|paulina|m[oó]nica|helena|laura|elvira|dalia|sabina|lucia|luc[ií]a|paloma|elena|marisol|camila|valentina|ximena|renata|larissa|beatriz|irene|abril|isabela|isabel|carlota|ver[oó]nica|sof[ií]a|ana\b)/i;
+const MALE = /(\bmale\b|hombre|jorge|diego|pablo|juan|carlos|ra[uú]l|enrique|[aá]lvaro|alonso|gerardo|jorge|tom[aá]s|eduardo|dario)/i;
+function voiceScore(v) {
+  const s = state.store.settings; const n = `${v.name} ${v.voiceURI}`;
+  let p = 0;
+  if (FEMALE.test(n) && !/\bmale\b/i.test(n.replace(/female/ig, ""))) p += 6;
+  if (MALE.test(n.replace(/female/ig, ""))) p -= 8;
+  if (/natural|neural|online|enhanced|premium|network|wavenet|studio/i.test(n)) p += 3;
+  if (v.localService === false) p += 1;
+  if (v.lang.replace("_", "-").toLowerCase() === s.variety.toLowerCase()) p += 4;
+  else if (s.variety === "es-MX" && /es[-_](us|419)/i.test(v.lang)) p += 3;
+  return p;
+}
+function isFemale(v) { const n = `${v.name} ${v.voiceURI}`; return FEMALE.test(n) && !MALE.test(n.replace(/female/ig, "")); }
+function pickVoice() {
+  const s = state.store.settings;
+  return voices.find((x) => x.voiceURI === s.voice) || [...voices].sort((a, b) => voiceScore(b) - voiceScore(a))[0];
+}
 function loadVoices() {
   if (!synth) return;
   voices = synth.getVoices().filter((v) => v.lang && v.lang.toLowerCase().startsWith("es"));
   const sel = $("#voice"); const cur = state.store.settings.voice;
-  sel.innerHTML = ""; sel.append(Object.assign(document.createElement("option"), { value: "", textContent: "기본 스페인어 목소리" }));
-  voices.forEach((v) => sel.append(Object.assign(document.createElement("option"), { value: v.voiceURI, textContent: `${v.name} (${v.lang})`, selected: v.voiceURI === cur })));
+  sel.innerHTML = ""; sel.append(Object.assign(document.createElement("option"), { value: "", textContent: "자동 (여성·자연스러운 목소리 우선)" }));
+  [...voices].sort((a, b) => voiceScore(b) - voiceScore(a)).forEach((v) => sel.append(Object.assign(document.createElement("option"), {
+    value: v.voiceURI, textContent: `${isFemale(v) ? "♀ " : ""}${v.name} (${v.lang})`, selected: v.voiceURI === cur,
+  })));
 }
 function speak(text, rate) {
   if (!synth || !text) return;
+  killRecognizer(); // never record Lucía's own voice
   try {
     synth.cancel();
     const s = state.store.settings;
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = s.variety; u.rate = rate || Number(s.rate) || 0.9;
-    const v = voices.find((x) => x.voiceURI === s.voice) || voices.find((x) => x.lang.replace("_", "-") === s.variety);
-    if (v) u.voice = v;
+    u.lang = s.variety; u.rate = rate || Number(s.rate) || 1;
+    const v = pickVoice();
+    if (v) { u.voice = v; u.lang = v.lang; }
     synth.speak(u);
   } catch {}
 }
@@ -418,10 +461,11 @@ function startListening() {
   setMicUi(true);
 }
 function runRecognizer() {
-  rec = new SR();
-  rec.lang = state.lang === "es" ? state.store.settings.variety : "ko-KR";
-  rec.continuous = true; rec.interimResults = true;
-  rec.onresult = (e) => {
+  const r = new SR(); rec = r;
+  r.lang = state.lang === "es" ? state.store.settings.variety : "ko-KR";
+  r.continuous = true; r.interimResults = true;
+  r.onresult = (e) => {
+    if (rec !== r) return;
     let fin = "", interim = "";
     for (let i = 0; i < e.results.length; i++) {
       const r = e.results[i];
@@ -430,18 +474,27 @@ function runRecognizer() {
     sessionText = fin.trim();
     $("#text").value = [baseText, sessionText, interim].filter(Boolean).join(" ");
   };
-  rec.onerror = (e) => {
+  r.onerror = (e) => {
+    if (rec !== r) return;
     if (e.error === "not-allowed" || e.error === "service-not-allowed") { wantListen = false; $("#micNote").textContent = "마이크 권한이 꺼져 있어요. 브라우저 사이트 설정에서 마이크를 허용해 주세요."; }
     else if (e.error === "network") { wantListen = false; $("#micNote").textContent = "음성 인식에 인터넷 연결이 필요해요."; }
   };
-  rec.onend = () => {
+  r.onend = () => {
+    if (rec !== r) return;
     baseText = [baseText, sessionText].filter(Boolean).join(" "); sessionText = "";
     if (wantListen) { try { runRecognizer(); return; } catch {} }
     setMicUi(false);
     $("#text").value = baseText;
     if (sendOnEnd && baseText) { sendOnEnd = false; send(); }
   };
-  try { rec.start(); } catch { wantListen = false; setMicUi(false); }
+  try { r.start(); } catch { wantListen = false; setMicUi(false); }
+}
+// Stop the mic immediately and drop anything it hears afterwards.
+function killRecognizer() {
+  const r = rec; rec = null;
+  wantListen = false; sendOnEnd = false; baseText = ""; sessionText = "";
+  if (r) { try { r.abort(); } catch {} }
+  setMicUi(false); setBusy();
 }
 function stopListening(andSend) {
   if (!rec) return;
@@ -479,6 +532,7 @@ function bind(id, key, cast = (v) => v) {
 }
 bind("#level", "level"); bind("#variety", "variety"); bind("#interests", "interests"); bind("#goal", "goal");
 bind("#model", "model"); bind("#voice", "voice"); bind("#rate", "rate", Number);
+$("#voiceTest").onclick = () => speak("¡Hola! Soy Lucía. Oye, ¿qué tal tu día? Cuéntame un poquito.");
 $("#rate").addEventListener("input", () => ($("#rateVal").textContent = Number($("#rate").value).toFixed(2)));
 $("#apiKey").addEventListener("change", () => setKey($("#apiKey").value.trim()));
 
