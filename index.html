@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Profe Lucía</title>
+<meta name="theme-color" content="#0E7457">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: phone-first one-screen app — header meter, mode chips, chat, composer with big mic; notebook/settings as full-screen sheet */
+:root{
+  --bg:#F2F4F1; --surface:#FFFFFF; --ink:#1B2420; --muted:#5E6B65; --line:#DCE2DE;
+  --verde:#0E7457; --verde-soft:#DDEFE7; --sol:#C98A12; --sol-soft:#FBF0D6; --rojo:#B5432F;
+  --me:#1F3A5F; --me-ink:#FFFFFF;
+  --f-display:"Bricolage Grotesque","Noto Sans KR",system-ui,sans-serif;
+  --f-body:"Noto Sans KR",system-ui,-apple-system,sans-serif;
+  --r:14px; color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#121815; --surface:#1A221E; --ink:#E6ECE8; --muted:#97A59E; --line:#2C3832;
+  --verde:#4CC49A; --verde-soft:#183A2E; --sol:#E8B44A; --sol-soft:#3A2F16; --rojo:#E58370;
+  --me:#2C4F7C; --me-ink:#F2F6FB; color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;display:flex;flex-direction:column;
+  padding:env(safe-area-inset-top,0px) max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--verde);outline-offset:2px}
+[hidden]{display:none!important}
+
+header{display:flex;align-items:center;gap:12px;padding-block:10px;border-bottom:1px solid var(--line)}
+.brand{margin-right:auto;min-width:0}
+.brand h1{font-family:var(--f-display);font-size:21px;margin:0;letter-spacing:-.01em;line-height:1.1}
+.brand span{color:var(--muted);font-size:12px}
+.meter{display:flex;gap:12px;font-variant-numeric:tabular-nums}
+.meter div{display:flex;flex-direction:column;align-items:center;line-height:1.1}
+.meter b{font-family:var(--f-display);font-size:19px;color:var(--verde)}
+.meter small{font-size:10px;color:var(--muted)}
+.icon-btn{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:13px}
+
+.modes{display:flex;gap:6px;overflow-x:auto;padding-block:8px;scrollbar-width:none;flex:none}
+.modes::-webkit-scrollbar{display:none}
+.mode{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:13px;white-space:nowrap}
+.mode b{font-family:var(--f-display);margin-right:4px}
+.mode[aria-pressed="true"]{background:var(--verde);border-color:var(--verde);color:#fff}
+.modes select{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 10px;font-size:13px}
+
+#chat{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-block:8px 16px}
+.msg{max-width:88%;display:flex;flex-direction:column;gap:6px}
+.msg.tutor{align-self:flex-start}
+.msg.me{align-self:flex-end;align-items:flex-end}
+.bubble{padding:10px 14px;border-radius:var(--r);background:var(--surface);border:1px solid var(--line);overflow-wrap:anywhere}
+.msg.me .bubble{background:var(--me);color:var(--me-ink);border-color:transparent}
+.es{font-size:17px}
+.ko{color:var(--muted);font-size:14px;margin-top:4px}
+.tools{display:flex;gap:4px;flex-wrap:wrap}
+.tools button{border:0;background:transparent;color:var(--muted);font-size:12px;padding:4px 8px;border-radius:6px}
+.task{background:var(--verde-soft);border-radius:10px;padding:8px 12px}
+.task small{display:block;font-size:11px;color:var(--verde);font-weight:700}
+.fix{align-self:flex-end;background:var(--sol-soft);border-left:3px solid var(--sol);border-radius:8px;padding:8px 12px;font-size:14px;max-width:88%}
+.fix s{color:var(--rojo)}
+.fix .right{font-weight:700}
+.starters{display:flex;gap:6px;flex-wrap:wrap}
+.starters button{border:1px dashed var(--verde);background:transparent;color:var(--verde);border-radius:999px;padding:5px 11px;font-size:13px}
+.tag{align-self:center;font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.thinking{color:var(--muted);font-size:14px;font-style:italic}
+.status{align-self:center;font-size:13px;color:var(--rojo);text-align:center}
+.cta{align-self:center;display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:8px;text-align:center}
+.primary{border:0;background:var(--verde);color:#fff;border-radius:999px;padding:11px 22px;font-weight:700;font-size:15px}
+.empty{color:var(--muted);font-size:13px}
+
+footer{flex:none;padding-block:8px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.row{display:flex;gap:8px;align-items:center}
+#mic{flex:none;width:62px;height:62px;border-radius:50%;border:0;background:var(--verde);color:#fff;font-size:26px;display:grid;place-items:center}
+#mic.live{background:var(--rojo);animation:pulse 1.2s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--rojo) 50%,transparent)}50%{box-shadow:0 0 0 10px transparent}}
+@media (prefers-reduced-motion:reduce){#mic.live{animation:none}}
+#mic:disabled,#send:disabled{opacity:.45}
+#text{flex:1;min-width:0;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:9px 12px;resize:none;height:62px}
+#send{flex:none;border:0;background:var(--ink);color:var(--bg);border-radius:12px;height:62px;padding:0 14px;font-weight:700}
+.sub{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.seg button{border:0;background:var(--surface);padding:4px 10px;font-size:13px}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.sub .spacer{flex:1}
+#endBtn{border:1px solid var(--rojo);color:var(--rojo);background:transparent;border-radius:999px;padding:4px 12px;font-size:13px}
+#micNote{width:100%}
+
+#sheet{position:fixed;inset:0;z-index:20;background:var(--bg);overflow:auto;
+  padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+#sheet .head{display:flex;align-items:center;justify-content:space-between}
+#sheet h2{font-family:var(--f-display);font-size:16px;margin:18px 0 8px}
+#sheet .head h2{margin:0;font-size:20px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px}
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;font-size:14px}
+.list li{display:flex;flex-direction:column}
+.list .k{color:var(--muted);font-size:13px}
+.list .cnt{font-size:11px;color:var(--sol);font-weight:700}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);margin-bottom:12px}
+label.f select,label.f input{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:8px;color:var(--ink);width:100%}
+.hint{font-size:12px;color:var(--muted);margin:-6px 0 12px}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.btns label.icon-btn{display:inline-block}
+
+dialog{border:1px solid var(--line);border-radius:18px;background:var(--surface);color:var(--ink);width:calc(100vw - 32px);max-width:560px;padding:20px}
+dialog::backdrop{background:rgba(0,0,0,.4)}
+dialog h3{font-family:var(--f-display);margin:0 0 12px;font-size:20px}
+dialog h4{margin:14px 0 6px;font-size:14px}
+dialog ul{margin:0;padding-left:18px}
+@media (min-width:900px){body{max-width:860px;margin:0 auto}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><h1>Profe Lucía</h1><span>말문 트기 스페인어 회화</span></div>
+  <div class="meter" aria-label="오늘의 말하기 기록">
+    <div><b id="mWords">0</b><small>말한 단어</small></div>
+    <div><b id="mTurns">0</b><small>내 턴</small></div>
+    <div><b id="mFix">0</b><small>교정</small></div>
+  </div>
+  <button class="icon-btn" id="openSheet" aria-label="노트와 설정 열기">설정</button>
+</header>
+
+<nav class="modes" id="modes" aria-label="연습 모드"></nav>
+<section id="chat" aria-live="polite"></section>
+
+<footer>
+  <div class="row">
+    <button id="mic" aria-label="말하기 시작">🎤</button>
+    <textarea id="text" placeholder="🎤 누르고 말하기, 또는 입력 (한국어도 OK)"></textarea>
+    <button id="send">보내기</button>
+  </div>
+  <div class="sub">
+    <span>내가 말할 언어</span>
+    <div class="seg" id="langSeg"><button data-l="es" aria-pressed="true">Español</button><button data-l="ko" aria-pressed="false">한국어</button></div>
+    <span class="spacer"></span>
+    <button id="endBtn">세션 끝내기</button>
+    <span id="micNote"></span>
+  </div>
+</footer>
+
+<div id="sheet" hidden>
+  <div class="head"><h2>노트 · 설정</h2><button class="icon-btn" id="closeSheet">닫기</button></div>
+  <h2>연결</h2>
+  <div class="card">
+    <label class="f">Anthropic API 키
+      <input id="apiKey" type="password" autocomplete="off" placeholder="sk-ant-..."></label>
+    <p class="hint">키는 이 폰의 브라우저 저장소에만 저장되고, Anthropic API로만 전송돼요. console.anthropic.com에서 발급받을 수 있어요.</p>
+    <label class="f">선생님 모델
+      <select id="model">
+        <option value="claude-opus-5-5">Opus 5.5 — 가장 정확한 교정</option>
+        <option value="claude-sonnet-5-5">Sonnet 5.5 — 균형</option>
+        <option value="claude-haiku-5-5">Haiku 5.5 — 가장 빠르고 저렴</option>
+      </select></label>
+  </div>
+  <h2>내 설정</h2>
+  <div class="card">
+    <label class="f">말하기 레벨
+      <select id="level"><option>A1</option><option>A2</option><option>B1</option><option>B2</option></select></label>
+    <label class="f">스페인어 종류
+      <select id="variety"><option value="es-MX">중남미 (멕시코)</option><option value="es-ES">스페인</option></select></label>
+    <label class="f">관심사
+      <input id="interests" placeholder="여행, 운동, 영상 제작, 음식"></label>
+    <label class="f">목표
+      <input id="goal" placeholder="예: 3개월 뒤 여행에서 10분 대화"></label>
+    <label class="f">선생님 말 속도 <span id="rateVal"></span>
+      <input id="rate" type="range" min="0.6" max="1.2" step="0.05"></label>
+    <label class="f">선생님 목소리
+      <select id="voice"><option value="">기본 스페인어 목소리</option></select></label>
+  </div>
+  <h2>자주 틀리는 패턴</h2>
+  <div class="card"><ul class="list" id="errList"></ul></div>
+  <h2>배운 표현</h2>
+  <div class="card"><ul class="list" id="phraseList"></ul></div>
+  <h2>지난 세션</h2>
+  <div class="card"><ul class="list" id="sessList"></ul></div>
+  <h2>백업</h2>
+  <div class="card">
+    <p class="hint" style="margin:0 0 10px">기록은 이 폰에만 저장돼요. 폰을 바꾸거나 브라우저 데이터를 지우기 전에 백업하세요. API 키는 백업에 포함되지 않아요.</p>
+    <div class="btns">
+      <button class="icon-btn" id="exportBtn">백업 파일 저장</button>
+      <label class="icon-btn" for="importFile">백업 불러오기</label>
+      <input id="importFile" type="file" accept="application/json" hidden>
+    </div>
+  </div>
+  <p class="hint" style="margin-top:16px">버전 <span id="ver"></span></p>
+</div>
+
+<dialog id="report"><h3>오늘의 세션</h3><div id="reportBody"></div>
+  <div style="display:flex;justify-content:flex-end;margin-top:16px"><button class="icon-btn" id="closeReport">닫기</button></div></dialog>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
