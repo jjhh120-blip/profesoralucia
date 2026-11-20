@@ -1,6 +1,6 @@
-import Anthropic from "https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@1.5.0/+esm";
-
-const VERSION = "1.0.0";
+const SDK_URL = "https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@1.5.0/+esm";
+const VERSION = "1.0.1";
+let Anthropic = null; // loaded on first use, so the screen still works if the CDN is slow or blocked
 const $ = (s) => document.querySelector(s);
 
 /* ---------------- data ---------------- */
@@ -39,9 +39,13 @@ function setKey(k) { try { k ? localStorage.setItem("profe-key", k) : localStora
 
 /* ---------------- Claude ---------------- */
 let client = null, clientKey = "";
-function getClient() {
+async function getClient() {
   const key = getKey();
   if (!key) return null;
+  if (!Anthropic) {
+    try { Anthropic = (await import(SDK_URL)).default; }
+    catch { throw Object.assign(new Error("sdk"), { code: "sdk_load" }); }
+  }
   if (!client || clientKey !== key) {
     // The key lives only on this device; the browser talks to the API directly.
     client = new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true });
@@ -132,7 +136,7 @@ ${phrases}`;
 function usesFallback(model) { return model === "claude-opus-5-5" || model === "claude-sonnet-5-5"; }
 
 async function askClaude({ system, messages, schema, maxTokens, effort }) {
-  const c = getClient();
+  const c = await getClient();
   if (!c) throw Object.assign(new Error("no key"), { code: "no_key" });
   const model = state.store.settings.model;
   const params = {
@@ -157,12 +161,14 @@ function errorCopy(e) {
   if (e?.code === "no_key") return "설정에서 Anthropic API 키를 넣어 주세요.";
   if (e?.code === "refusal") return "선생님이 이 내용에는 답하지 못했어요. 다른 말로 다시 해 볼까요?";
   if (e?.code === "max_tokens") return "답이 너무 길어져 끊겼어요. 한 번 더 보내 주세요.";
-  if (e instanceof Anthropic.AuthenticationError) return "API 키가 올바르지 않아요. 설정에서 키를 확인해 주세요.";
-  if (e instanceof Anthropic.PermissionDeniedError) return "이 API 키로는 선택한 모델을 쓸 수 없어요. 설정에서 다른 모델을 골라 보세요.";
-  if (e instanceof Anthropic.RateLimitError) return "요청이 많아 잠시 쉬어야 해요. 몇 초 뒤 다시 보내 주세요.";
-  if (e instanceof Anthropic.BadRequestError) return "요청이 거절됐어요: " + (e.message || "").slice(0, 160);
-  if (e instanceof Anthropic.APIConnectionError) return "인터넷 연결을 확인해 주세요.";
-  if (e instanceof Anthropic.APIError) return "서버 오류가 났어요. 잠시 뒤 다시 보내 주세요.";
+  if (e?.code === "sdk_load") return "선생님 연결 모듈을 불러오지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.";
+  const is = (name) => !!(Anthropic && Anthropic[name] && e instanceof Anthropic[name]);
+  if (is("AuthenticationError")) return "API 키가 올바르지 않아요. 설정에서 키를 확인해 주세요.";
+  if (is("PermissionDeniedError")) return "이 API 키로는 선택한 모델을 쓸 수 없어요. 설정에서 다른 모델을 골라 보세요.";
+  if (is("RateLimitError")) return "요청이 많아 잠시 쉬어야 해요. 몇 초 뒤 다시 보내 주세요.";
+  if (is("BadRequestError")) return "요청이 거절됐어요: " + (e.message || "").slice(0, 160);
+  if (is("APIConnectionError")) return "인터넷 연결을 확인해 주세요.";
+  if (is("APIError")) return "서버 오류가 났어요. 잠시 뒤 다시 보내 주세요.";
   if (e instanceof SyntaxError) return "선생님 답을 읽지 못했어요. 한 번 더 보내 주세요.";
   return "선생님 응답을 받지 못했어요. 다시 보내 주세요.";
 }
@@ -452,7 +458,13 @@ function setMicUi(live) {
 function setBusy() { $("#send").disabled = state.busy; $("#mic").disabled = !SR || (state.busy && !wantListen); }
 function openSheet() { renderNotes(); $("#sheet").hidden = false; }
 $("#openSheet").onclick = openSheet;
-$("#closeSheet").onclick = () => { $("#sheet").hidden = true; if (!state.started) renderWelcome(); };
+function closeSheet() {
+  setKey($("#apiKey").value.trim());
+  $("#sheet").hidden = true;
+  if (!state.started) renderWelcome();
+}
+$("#closeSheet").onclick = closeSheet;
+$("#closeSheet2").onclick = closeSheet;
 $("#send").onclick = send;
 $("#text").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } });
 $("#mic").onclick = () => (wantListen ? stopListening(true) : startListening());
@@ -491,5 +503,6 @@ if (!SR) $("#micNote").textContent = "이 브라우저는 음성 인식을 지�
 if (synth) { loadVoices(); synth.onvoiceschanged = loadVoices; }
 renderModes(); renderMeter(); renderNotes(); renderWelcome(); setBusy();
 if (!getKey()) openSheet();
+window.__profeReady = true;
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

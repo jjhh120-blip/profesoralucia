@@ -93,7 +93,11 @@ footer{flex:none;padding-block:8px calc(10px + env(safe-area-inset-bottom,0px));
 
 #sheet{position:fixed;inset:0;z-index:20;background:var(--bg);overflow:auto;
   padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
-#sheet .head{display:flex;align-items:center;justify-content:space-between}
+#sheet .head{display:flex;align-items:center;justify-content:space-between;position:sticky;top:calc(-12px - env(safe-area-inset-top,0px));z-index:1;background:var(--bg);
+  margin:calc(-12px - env(safe-area-inset-top,0px)) 0 0;padding:calc(12px + env(safe-area-inset-top,0px)) 0 10px;border-bottom:1px solid var(--line)}
+#sheet .head .primary{padding:8px 16px;font-size:14px}
+#sheet .done{width:100%;margin-top:20px}
+#jsError{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:30;background:var(--rojo);color:#fff;border-radius:12px;padding:10px 14px;font-size:13px}
 #sheet h2{font-family:var(--f-display);font-size:16px;margin:18px 0 8px}
 #sheet .head h2{margin:0;font-size:20px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px}
@@ -145,7 +149,7 @@ dialog ul{margin:0;padding-left:18px}
 </footer>
 
 <div id="sheet" hidden>
-  <div class="head"><h2>노트 · 설정</h2><button class="icon-btn" id="closeSheet">닫기</button></div>
+  <div class="head"><h2>노트 · 설정</h2><button class="primary" id="closeSheet">저장하고 닫기</button></div>
   <h2>연결</h2>
   <div class="card">
     <label class="f">Anthropic API 키
@@ -188,8 +192,24 @@ dialog ul{margin:0;padding-left:18px}
       <input id="importFile" type="file" accept="application/json" hidden>
     </div>
   </div>
-  <p class="hint" style="margin-top:16px">버전 <span id="ver"></span></p>
+  <button class="primary done" id="closeSheet2">저장하고 수업으로</button>
+  <p class="hint" style="margin-top:16px">버전 <span id="ver">(앱 코드를 불러오지 못함)</span></p>
 </div>
+<div id="jsError" hidden></div>
+<script>
+  // Shows a visible message if the app script fails to load or crashes, instead of a silent blank screen.
+  window.addEventListener("error", function (e) {
+    var b = document.getElementById("jsError");
+    b.textContent = "앱 오류: " + (e.message || "스크립트를 불러오지 못했어요") + " — 새로고침해 보고, 계속되면 이 문구를 알려주세요.";
+    b.hidden = false;
+  });
+  setTimeout(function () {
+    if (!window.__profeReady) {
+      var b = document.getElementById("jsError");
+      if (b.hidden) { b.textContent = "앱을 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요. 크롬 브라우저를 최신으로 업데이트하면 해결될 수 있어요."; b.hidden = false; }
+    }
+  }, 8000);
+</script>
 
 <dialog id="report"><h3>오늘의 세션</h3><div id="reportBody"></div>
   <div style="display:flex;justify-content:flex-end;margin-top:16px"><button class="icon-btn" id="closeReport">닫기</button></div></dialog>
